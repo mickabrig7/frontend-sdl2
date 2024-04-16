@@ -6,6 +6,9 @@
 
 #include <SDL2/SDL.h>
 
+static uint32_t lastFrameTime, frameTimeCount, frameTimeSum, worstFrameTime;
+static uint32_t bestFrameTime = 0xFFFFFFFF;
+
 RenderLoop::RenderLoop()
     : _audioCapture(Poco::Util::Application::instance().getSubsystem<AudioCapture>())
     , _projectMWrapper(Poco::Util::Application::instance().getSubsystem<ProjectMWrapper>())
@@ -19,11 +22,13 @@ void RenderLoop::Run()
 {
     FPSLimiter limiter;
     limiter.TargetFPS(_projectMWrapper.TargetFPS());
-
+    
+    printf("Preset index;Playlist length;Preset path;Average FPS;Worst FPS;Best FPS\n");
+    
     projectm_playlist_set_preset_switched_event_callback(_playlistHandle, &RenderLoop::PresetSwitchedEvent, static_cast<void*>(this));
-
+    
     _projectMWrapper.DisplayInitialPreset();
-
+    
     while (!_wantsToQuit)
     {
         limiter.StartFrame();
@@ -32,7 +37,30 @@ void RenderLoop::Run()
         _audioCapture.FillBuffer();
         _projectMWrapper.RenderFrame();
         _sdlRenderingWindow.Swap();
-        limiter.EndFrame();
+        lastFrameTime = limiter.EndFrame();
+        
+        if (lastFrameTime > 0)
+        {
+            frameTimeCount++;
+            frameTimeSum += lastFrameTime;
+            worstFrameTime = (lastFrameTime > worstFrameTime) ? lastFrameTime : worstFrameTime;
+            bestFrameTime = (bestFrameTime > lastFrameTime) ? lastFrameTime : bestFrameTime;
+        }
+        if (frameTimeSum >= 2000)
+        {
+            printf("%.2f;", 1000.0f / (static_cast<float>(frameTimeSum) / static_cast<float>(frameTimeCount)));
+            printf("%.2f;", 1000.0f / static_cast<float>(worstFrameTime));
+            printf("%.2f\n", 1000.0f / static_cast<float>(bestFrameTime));
+            
+            if (projectm_playlist_get_position(_playlistHandle) == projectm_playlist_size(_playlistHandle)-1) break;
+            
+            projectm_playlist_play_next(_playlistHandle, true);
+            
+            frameTimeCount = 0;
+            frameTimeSum = 0;
+            worstFrameTime = 0;
+            bestFrameTime = 0xFFFFFFFF;
+        }
     }
 
     projectm_playlist_set_preset_switched_event_callback(_playlistHandle, nullptr, nullptr);
@@ -287,7 +315,7 @@ void RenderLoop::PresetSwitchedEvent(bool isHardCut, unsigned int index, void* c
 {
     auto that = reinterpret_cast<RenderLoop*>(context);
     auto presetName = projectm_playlist_item(that->_playlistHandle, index);
-    SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "Displaying preset: %s\n", presetName);;
+    printf("%d;%d;\"%s\";", index, projectm_playlist_size(that->_playlistHandle), presetName);;
     projectm_playlist_free_string(presetName);
 
     that->UpdateWindowTitle();

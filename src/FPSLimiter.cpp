@@ -41,7 +41,7 @@ void FPSLimiter::StartFrame()
     _lastTickCount = SDL_GetTicks();
 }
 
-void FPSLimiter::EndFrame()
+uint32_t FPSLimiter::EndFrame()
 {
     uint32_t frameTime = SDL_GetTicks() - _lastTickCount;
 
@@ -53,4 +53,6 @@ void FPSLimiter::EndFrame()
 
     _lastFrameTimes[_nextFrameTimesOffset] = frameTime;
     _nextFrameTimesOffset = (_nextFrameTimesOffset + 1) % 10;
+    
+    return frameTime;
 }

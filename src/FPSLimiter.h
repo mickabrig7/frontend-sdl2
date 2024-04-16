@@ -35,7 +35,7 @@ public:
      *
      * Will pause if required to lower FPS to target value. Also records the last frame time for FPS calculation.
      */
-    void EndFrame();
+    uint32_t EndFrame();
 
 protected:
 
